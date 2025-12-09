@@ -19,10 +19,17 @@ def gerar_boolecube(tabela, variaveis, indice_saida):
     expressao = " + ".join(termos)
     return expressao
 
-def converter_para_hillcube(expr_boole, variaveis):
+def converter_para_hillcube(expr_boole, variaveis, var_saida):
     expr = expr_boole
+    sufixo_saida = var_saida.split('_')[1] if '_' in var_saida else var_saida[-1]
+    
     for v in variaveis:
-        f_v = f"(({v}**n_{v})/(({v}**n_{v}) + (k_{v}**n_{v})))"
+        sufixo_reguladora = v.split('_')[1] if '_' in v else v[-1]
+        
+        n_param = f"n_{sufixo_reguladora}{sufixo_saida}"
+        k_param = f"k_{sufixo_reguladora}{sufixo_saida}"
+        
+        f_v = f"(({v}**{n_param})/(({v}**{n_param}) + ({k_param}**{n_param})))"
         expr = expr.replace(v, f_v)
         expr = expr.replace(f"(1 - {f_v})", f"(1 - {f_v})")
     return expr
@@ -58,9 +65,9 @@ print("BooleCube C =", boole_C)
 print("\n")
 
 # === HillCubes ===
-hill_A = converter_para_hillcube(boole_A, variaveis)
-hill_B = converter_para_hillcube(boole_B, variaveis)
-hill_C = converter_para_hillcube(boole_C, variaveis)
+hill_A = converter_para_hillcube(boole_A, variaveis, "x_a")
+hill_B = converter_para_hillcube(boole_B, variaveis, "x_b")
+hill_C = converter_para_hillcube(boole_C, variaveis, "x_c")
 
 print("HillCube A =", hill_A)
 print("\n")
