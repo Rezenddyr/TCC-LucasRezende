@@ -1,78 +1,129 @@
+import numpy as np
 import sympy as sp
+from scipy.stats import zscore
 
-def generate_boolecube(tabela, variaveis_str, indice_saida):
-    x_bars = sp.symbols(' '.join(variaveis_str))
-    if len(variaveis_str) == 1:
-        x_bars = (x_bars,)
-        
-    boolecube = 0
-    
+
+def binarizar(serie):
+    z = zscore(serie, axis=0)
+    diff = np.diff(z, axis=0)
+    return (diff >= 0).astype(int)
+
+
+def montar_tabela_verdade(binario):
+    T, N = binario.shape
+    transicoes = {}
+    for t in range(T - 1):
+        estado = tuple(binario[t])
+        proximo = tuple(binario[t + 1])
+        if estado not in transicoes:
+            transicoes[estado] = {}
+        transicoes[estado][proximo] = transicoes[estado].get(proximo, 0) + 1
+
+    tabela = []
+    for estado, proximos in transicoes.items():
+        # Escolhe a transição mais frequente em caso de ambiguidade
+        mais_frequente = max(proximos, key=proximos.get)
+        tabela.append([int(x) for x in list(estado) + list(mais_frequente)])
+    return tabela
+
+def gerar_boolecube(tabela, simbolos, coluna_saida):
+    n = len(simbolos)
+    expressao = sp.Integer(0)
     for linha in tabela:
-        valores_x = linha[:len(variaveis_str)] 
-        B_val = linha[indice_saida]            
-        
-        if B_val == 1:
-            produtorio = 1
-            for x_i, x_bar_i in zip(valores_x, x_bars):
-                # Se for 1, usa (x). 
-                # Se for 0, usa (1 - x).
-                termo = x_bar_i if x_i == 1 else (1 - x_bar_i)
-                produtorio *= termo
-                
-            boolecube += produtorio
-            
-    return sp.simplify(boolecube)
+        entradas = linha[:n]
+        saida = linha[coluna_saida]
+        if saida == 1:
+            produto = sp.Integer(1)
+            for val, sym in zip(entradas, simbolos):
+                produto *= sym if val == 1 else (1 - sym)
+            expressao += produto
+    return sp.expand(expressao)
 
-def hillcube_and_normalization(boolecube, variaveis_str, var_saida_str, normalizar_f1=True):
 
+
+def gerar_hillcube(boolecube, simbolos_entrada, nome_saida):
     expr = boolecube
-    sufixo_saida = var_saida_str.split('_')[1] if '_' in var_saida_str else var_saida_str[-1]
-    
-    for v_str in variaveis_str:
-        v_sym = sp.Symbol(v_str)
-        sufixo_reguladora = v_str.split('_')[1] if '_' in v_str else v_str[-1]
-        
-        # Define os parâmetros da função de Hill (n) e (k)
-        n = sp.Symbol(f'n_{sufixo_reguladora}{sufixo_saida}')
-        k = sp.Symbol(f'k_{sufixo_reguladora}{sufixo_saida}')
-        N_v = sp.Symbol(f'N({v_str})')
-        
-        f_v = (N_v**n) / (N_v**n + k**n)
-        
-        if normalizar_f1:
-            f_1 = 1 / (1 + k**n)
-            f_v = f_v / f_1
-            
-        expr = expr.subs(v_sym, f_v)
-        
+    for sym in simbolos_entrada:
+        reg = sym.name
+        N_v = sp.Symbol(f'N_{reg}')       # variável normalizada: X/max(X)
+        n   = sp.Symbol(f'n_{reg}{nome_saida}')
+        k   = sp.Symbol(f'k_{reg}{nome_saida}')
+
+        f_x    = N_v**n / (N_v**n + k**n)
+        f_1    = sp.Integer(1) / (sp.Integer(1) + k**n)
+        f_norm = sp.simplify(f_x / f_1)
+
+        # Substitui a variável booleana pela função de Hill normalizada
+        expr = expr.subs(sym, f_norm)
     return sp.simplify(expr)
 
-def make_edo(hillcube_expr, var_saida_str):
-    tau = sp.Symbol(f'tau_{var_saida_str}')
-    N_saida = sp.Symbol(f'N({var_saida_str})')
-    
-    edo_expr = (1 / tau) * (hillcube_expr - N_saida)
-    
-    derivada = sp.Symbol(f'd{var_saida_str}/dt')
-    
-    return sp.Eq(derivada, edo_expr)
 
-tabela_abc = [
-    [0, 0, 0, 0, 1, 0], [0, 0, 1, 1, 1, 0], [0, 1, 0, 1, 0, 1], [0, 1, 1, 0, 1, 1],
-    [1, 0, 0, 1, 1, 0], [1, 0, 1, 0, 1, 1], [1, 1, 0, 0, 0, 1], [1, 1, 1, 1, 0, 1]
-]
 
-vars_entrada = ['x_a', 'x_b', 'x_c']
-mapeamento = {'A': 3, 'B': 4, 'C': 5}
+def gerar_ode(hillcube, nome_saida):
+    tau   = sp.Symbol(f'tau_{nome_saida}')
+    N_out = sp.Symbol(f'N_{nome_saida}')
+    deriv = sp.Symbol(f'd{nome_saida}_dt')
+    return sp.Eq(deriv, (hillcube - N_out) / tau)
 
-for var, idx in mapeamento.items():
-    boole = generate_boolecube(tabela_abc, vars_entrada, idx)
-    
-    hill = hillcube_and_normalization(boole, vars_entrada, var, normalizar_f1=True)
-    
-    ode = make_edo(hill, var)
-    
-    print(f'--- Resultados para {var} ---')
-    print(f'BooleCube: {boole}')
-    print(f'HillCube (Normalizado): {hill}')
-    print(f'ODE: {ode}\n')
+
+def rodar_pipeline(nomes, tabela):
+    simbolos = [sp.Symbol(n) for n in nomes]
+    N = len(nomes)
+
+    boolecubes = {}
+    hillcubes  = {}
+    odes       = {}
+
+    for i, var in enumerate(nomes):
+        col_saida = N + i
+
+        bc = gerar_boolecube(tabela, simbolos, col_saida)
+        boolecubes[var] = bc
+
+        # Só passa para o HillCube as variáveis que realmente aparecem no BooleCube
+        vars_ativas = [s for s in simbolos if s in bc.free_symbols]
+        hc = gerar_hillcube(bc, vars_ativas, var)
+        hillcubes[var] = hc
+
+        odes[var] = gerar_ode(hc, var)
+
+    # Coleta todos os parâmetros livres (n, k, tau) para a ES
+    simbolos_livres = sorted({
+        s for ode in odes.values()
+        for s in ode.free_symbols
+        if not str(s).startswith('N_') and not str(s).startswith('d')
+    }, key=str)
+
+    return boolecubes, hillcubes, odes, simbolos_livres
+
+
+if __name__ == '__main__':
+
+    tabela = [
+        [A, B, C, D, E,  E, A, B, C, int((B and D) or (D and E))]
+        for A in range(2)
+        for B in range(2)
+        for C in range(2)
+        for D in range(2)
+        for E in range(2)
+    ]
+
+    boolecubes, hillcubes, odes, livres = rodar_pipeline(
+        nomes=['A', 'B', 'C', 'D', 'E'],
+        tabela=tabela,
+    )
+
+    print("--- BooleCubes ---")
+    for var, bc in boolecubes.items():
+        print(f"  {var}: {bc}")
+
+    print("\n--- HillCubes ---")
+    for var, hc in hillcubes.items():
+        print(f"  {var}: {hc}")
+
+    print("\n--- ODEs ---")
+    for ode in odes.values():
+        print(f"  {ode}")
+
+    print("\n--- Símbolos livres para ES ---")
+    print(f"  {livres}")
