@@ -2,30 +2,6 @@ import numpy as np
 import sympy as sp
 from scipy.stats import zscore
 
-
-def binarizar(serie):
-    z = zscore(serie, axis=0)
-    diff = np.diff(z, axis=0)
-    return (diff >= 0).astype(int)
-
-
-def montar_tabela_verdade(binario):
-    T, N = binario.shape
-    transicoes = {}
-    for t in range(T - 1):
-        estado = tuple(binario[t])
-        proximo = tuple(binario[t + 1])
-        if estado not in transicoes:
-            transicoes[estado] = {}
-        transicoes[estado][proximo] = transicoes[estado].get(proximo, 0) + 1
-
-    tabela = []
-    for estado, proximos in transicoes.items():
-        # Escolhe a transição mais frequente em caso de ambiguidade
-        mais_frequente = max(proximos, key=proximos.get)
-        tabela.append([int(x) for x in list(estado) + list(mais_frequente)])
-    return tabela
-
 def gerar_boolecube(tabela, simbolos, coluna_saida):
     n = len(simbolos)
     expressao = sp.Integer(0)
@@ -100,7 +76,7 @@ def rodar_pipeline(nomes, tabela):
 if __name__ == '__main__':
 
     tabela = [
-        [A, B, C, D, E,  E, A, B, C, int((B and D) or (D and E))]
+        [A, B, C, D, E,  1-E, A, B, C, int((B and D) or (D and E))]
         for A in range(2)
         for B in range(2)
         for C in range(2)
