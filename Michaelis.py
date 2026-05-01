@@ -75,7 +75,7 @@ def rodar_pipeline(nomes, tabela):
 if __name__ == '__main__':
 
     tabela = [
-        [A, B, C, D, E,  E, A, B, C, int((B and D) or (D and E))]
+        [A, B, C, D, E,  1-E, A, B, C, int((B and D) or (D and E))]
         for A in range(2)
         for B in range(2)
         for C in range(2)
