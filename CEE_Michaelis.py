@@ -7,7 +7,7 @@ import math
 import os
 import time
 
-METODO = "ES_Hill"
+METODO = "ES_Michaelis"
 
 
 arquivo = open("GRN5.txt", 'r')
@@ -38,17 +38,14 @@ dobra_pontos = copy.deepcopy(x)
 Y0 = [A[0], B[0], C[0], D[0], E[0]]
 
 
-IND_SIZE     = 19
+IND_SIZE     = 12
 TAU_SIZE     = 5
-K_SIZE       = 7
-N_SIZE       = 7
+KM_SIZE      = 7
 
 MIN_TAU      = 0.1
 MAX_TAU      = 5.0
-MIN_K        = 0.1
-MAX_K        = 1.0
-MIN_N        = 1.0
-MAX_N        = 25.0
+MIN_KM       = 0.01
+MAX_KM       = 500.0
 MIN_STRATEGY = 0.1
 MAX_STRATEGY = 10.0
 
@@ -57,29 +54,30 @@ APTIDAO        = []
 APTIDAO_FILHOS = []
 
 
-def twoBody(y, t, tauA, kA, nA,
-                   tauB, kB, nB,
-                   tauC, kC, nC,
-                   tauD, kD, nD,
-                   tauE, kEB, kED, kEE, nEB, nED, nEE):
+def twoBody(y, t, tauA, tauB, tauC, tauD, tauE,
+                   Km_AB, Km_BC, Km_BE, Km_CD, Km_DE, Km_EA, Km_EE):
     ydot = np.empty((5,))
 
-    ydot[0] = ((1 - (pow(y[4]/maximo_E, nA) / (pow(y[4]/maximo_E, nA) + pow(kA, nA))))
-               - y[0]/maximo_A) / tauA
+    NA = y[0] / maximo_A
+    NB = y[1] / maximo_B
+    NC = y[2] / maximo_C
+    ND = y[3] / maximo_D
+    NE = y[4] / maximo_E
 
-    ydot[1] = ((pow(y[0]/maximo_A, nB) / (pow(y[0]/maximo_A, nB) + pow(kB, nB)))
-               - y[1]/maximo_B) / tauB
+    ydot[0] = (Km_EA * (1 - NE) / (Km_EA + NE) - NA) / tauA
 
-    ydot[2] = ((pow(y[1]/maximo_B, nC) / (pow(y[1]/maximo_B, nC) + pow(kC, nC)))
-               - y[2]/maximo_C) / tauC
+    ydot[1] = (NA * (Km_AB + 1) / (Km_AB + NA) - NB) / tauB
 
-    ydot[3] = ((pow(y[2]/maximo_C, nD) / (pow(y[2]/maximo_C, nD) + pow(kD, nD)))
-               - y[3]/maximo_D) / tauD
+    ydot[2] = (NB * (Km_BC + 1) / (Km_BC + NB) - NC) / tauC
 
-    HB = pow(y[1]/maximo_B, nEB) / (pow(y[1]/maximo_B, nEB) + pow(kEB, nEB))
-    HD = pow(y[3]/maximo_D, nED) / (pow(y[3]/maximo_D, nED) + pow(kED, nED))
-    HE = pow(y[4]/maximo_E, nEE) / (pow(y[4]/maximo_E, nEE) + pow(kEE, nEE))
-    ydot[4] = ((HB * HD) + (HD * HE) - y[4]/maximo_E) / tauE
+    ydot[3] = (NC * (Km_CD + 1) / (Km_CD + NC) - ND) / tauD
+
+    num_E = (ND * (Km_DE + 1) *
+             (-NB * NE * (Km_BE + 1) * (Km_EE + 1)
+              + NB * (Km_BE + 1) * (Km_EE + NE)
+              + NE * (Km_BE + NB) * (Km_EE + 1)))
+    den_E = (Km_BE + NB) * (Km_DE + ND) * (Km_EE + NE)
+    ydot[4] = (num_E / den_E - NE) / tauE
 
     return ydot
 
@@ -109,20 +107,14 @@ def calcula_diferenca(pA, pB, pC, pD, pE):
 
 def extrai_params(ind):
     return (ind[0],  ind[1],  ind[2],  ind[3],  ind[4],
-            ind[5],  ind[6],  ind[7],  ind[8],
-            ind[9],  ind[10], ind[11],
-            int(ind[12]), int(ind[13]), int(ind[14]), int(ind[15]),
-            int(ind[16]), int(ind[17]), int(ind[18]))
+            ind[5],  ind[6],  ind[7],  ind[8],  ind[9],  ind[10], ind[11])
 
 
 def avalia(ind):
     p = extrai_params(ind)
     sol = odeint(twoBody, Y0, dobra_pontos,
-                 args=(p[0], p[5], p[12],
-                       p[1], p[6], p[13],
-                       p[2], p[7], p[14],
-                       p[3], p[8], p[15],
-                       p[4], p[9], p[10], p[11], p[16], p[17], p[18]))
+                 args=(p[0], p[1], p[2], p[3], p[4],
+                       p[5], p[6], p[7], p[8], p[9], p[10], p[11]))
     pA, pB, pC, pD, pE = organiza_pontos(sol)
     return calcula_diferenca(pA, pB, pC, pD, pE)
 
@@ -132,10 +124,8 @@ def cria_individuo():
     ind = []
     for _ in range(TAU_SIZE):
         ind.append(r.uniform(MIN_TAU, MAX_TAU))
-    for _ in range(K_SIZE):
-        ind.append(r.uniform(MIN_K, MAX_K))
-    for _ in range(N_SIZE):
-        ind.append(r.uniform(MIN_N, MAX_N))
+    for _ in range(KM_SIZE):
+        ind.append(r.uniform(MIN_KM, MAX_KM))
     for _ in range(IND_SIZE):
         ind.append(r.uniform(MIN_STRATEGY, MAX_STRATEGY))
     return ind
@@ -154,12 +144,10 @@ def mutESLogNormal(ind, c, indpb):
             s_old = copy.deepcopy(ind[s_idx])
             v_old = copy.deepcopy(ind[indx])
 
-            if indx < TAU_SIZE:                   
+            if indx < TAU_SIZE:
                 lo, hi = MIN_TAU, MAX_TAU
-            elif indx < TAU_SIZE + K_SIZE:         
-                lo, hi = MIN_K, MAX_K
-            else:                                 
-                lo, hi = MIN_N, MAX_N
+            else:
+                lo, hi = MIN_KM, MAX_KM
 
             tentativas = 0
             while True:
@@ -202,11 +190,8 @@ def selTournament(offspring, mu, tournsize):
 def plota_resultados(ind, pasta):
     p = extrai_params(ind)
     sol = odeint(twoBody, Y0, dobra_pontos,
-                 args=(p[0], p[5], p[12],
-                       p[1], p[6], p[13],
-                       p[2], p[7], p[14],
-                       p[3], p[8], p[15],
-                       p[4], p[9], p[10], p[11], p[16], p[17], p[18]))
+                 args=(p[0], p[1], p[2], p[3], p[4],
+                       p[5], p[6], p[7], p[8], p[9], p[10], p[11]))
     pA, pB, pC, pD, pE = organiza_pontos(sol)
 
     fig, axs = plt.subplots(2, 3, figsize=(15, 8))
@@ -223,7 +208,7 @@ def plota_resultados(ind, pasta):
         ax.set_title(f'Variável {nome}')
         ax.set_xlabel('Tempo (h)')
         ax.set_ylabel('Concentração')
-        ax.legend() 
+        ax.legend()
 
     axs[1][2].axis('off')
 
@@ -248,7 +233,7 @@ def main():
     inicio = time.time()
     with open(arquivo_resultados, "w") as f:
         f.write(f"SEED: {seed}\n")
-        f.write(f"BOUNDS: tau=[{MIN_TAU}, {MAX_TAU}]  K=[{MIN_K}, {MAX_K}]  N=[{MIN_N}, {MAX_N}]\n")
+        f.write(f"BOUNDS: tau=[{MIN_TAU}, {MAX_TAU}]  Km=[{MIN_KM}, {MAX_KM}]\n")
 
     for _ in range(MU):
         POPULACAO.append(cria_individuo())

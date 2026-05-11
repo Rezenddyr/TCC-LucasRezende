@@ -7,7 +7,7 @@ import math
 import os
 import time
 
-METODO = "ES_Hill"
+METODO = "ES_GK"
 
 
 arquivo = open("GRN5.txt", 'r')
@@ -38,17 +38,17 @@ dobra_pontos = copy.deepcopy(x)
 Y0 = [A[0], B[0], C[0], D[0], E[0]]
 
 
-IND_SIZE     = 19
+IND_SIZE     = 26
 TAU_SIZE     = 5
-K_SIZE       = 7
-N_SIZE       = 7
+V2_SIZE      = 7
+J_SIZE       = 14
 
 MIN_TAU      = 0.1
 MAX_TAU      = 5.0
-MIN_K        = 0.1
-MAX_K        = 1.0
-MIN_N        = 1.0
-MAX_N        = 25.0
+MIN_V2       = 0.01
+MAX_V2       = 1.5
+MIN_J        = 0.001
+MAX_J        = 0.99
 MIN_STRATEGY = 0.1
 MAX_STRATEGY = 10.0
 
@@ -57,32 +57,48 @@ APTIDAO        = []
 APTIDAO_FILHOS = []
 
 
-def twoBody(y, t, tauA, kA, nA,
-                   tauB, kB, nB,
-                   tauC, kC, nC,
-                   tauD, kD, nD,
-                   tauE, kEB, kED, kEE, nEB, nED, nEE):
+def GK(v1, v2, J1, J2):
+    if v1 <= 0.0:
+        return 0.0
+    B = v2 - v1 + v1 * J2 + v2 * J1
+    disc = B * B - 4.0 * (v2 - v1) * v1 * J2
+    if disc < 0.0:
+        disc = 0.0
+    denom = B + math.sqrt(disc)
+    if denom <= 1e-12:
+        return 1.0
+    return 2.0 * v1 * J2 / denom
+
+
+def twoBody(y, t,
+            tauA, tauB, tauC, tauD, tauE,
+            v2_EA, J1_EA, J2_EA,
+            v2_AB, J1_AB, J2_AB,
+            v2_BC, J1_BC, J2_BC,
+            v2_CD, J1_CD, J2_CD,
+            v2_BE, J1_BE, J2_BE,
+            v2_DE, J1_DE, J2_DE,
+            v2_EE, J1_EE, J2_EE):
+
+    NA = y[0] / maximo_A
+    NB = y[1] / maximo_B
+    NC = y[2] / maximo_C
+    ND = y[3] / maximo_D
+    NE = y[4] / maximo_E
+
     ydot = np.empty((5,))
 
-    ydot[0] = ((1 - (pow(y[4]/maximo_E, nA) / (pow(y[4]/maximo_E, nA) + pow(kA, nA))))
-               - y[0]/maximo_A) / tauA
+    ydot[0] = (1.0 - GK(NE, v2_EA, J1_EA, J2_EA) - NA) / tauA
+    ydot[1] = (GK(NA, v2_AB, J1_AB, J2_AB) - NB) / tauB
+    ydot[2] = (GK(NB, v2_BC, J1_BC, J2_BC) - NC) / tauC
+    ydot[3] = (GK(NC, v2_CD, J1_CD, J2_CD) - ND) / tauD
 
-    ydot[1] = ((pow(y[0]/maximo_A, nB) / (pow(y[0]/maximo_A, nB) + pow(kB, nB)))
-               - y[1]/maximo_B) / tauB
-
-    ydot[2] = ((pow(y[1]/maximo_B, nC) / (pow(y[1]/maximo_B, nC) + pow(kC, nC)))
-               - y[2]/maximo_C) / tauC
-
-    ydot[3] = ((pow(y[2]/maximo_C, nD) / (pow(y[2]/maximo_C, nD) + pow(kD, nD)))
-               - y[3]/maximo_D) / tauD
-
-    HB = pow(y[1]/maximo_B, nEB) / (pow(y[1]/maximo_B, nEB) + pow(kEB, nEB))
-    HD = pow(y[3]/maximo_D, nED) / (pow(y[3]/maximo_D, nED) + pow(kED, nED))
-    HE = pow(y[4]/maximo_E, nEE) / (pow(y[4]/maximo_E, nEE) + pow(kEE, nEE))
-    ydot[4] = ((HB * HD) + (HD * HE) - y[4]/maximo_E) / tauE
+    GKB = GK(NB, v2_BE, J1_BE, J2_BE)
+    GKD = GK(ND, v2_DE, J1_DE, J2_DE)
+    GKE = GK(NE, v2_EE, J1_EE, J2_EE)
+    ydot[4] = (GKB * GKD + GKD * GKE - NE) / tauE
 
     return ydot
-
 
 
 def organiza_pontos(solucao):
@@ -108,38 +124,36 @@ def calcula_diferenca(pA, pB, pC, pD, pE):
 
 
 def extrai_params(ind):
-    return (ind[0],  ind[1],  ind[2],  ind[3],  ind[4],
-            ind[5],  ind[6],  ind[7],  ind[8],
-            ind[9],  ind[10], ind[11],
-            int(ind[12]), int(ind[13]), int(ind[14]), int(ind[15]),
-            int(ind[16]), int(ind[17]), int(ind[18]))
+    return (
+        ind[0],  ind[1],  ind[2],  ind[3],  ind[4],   # tauA..tauE
+        ind[5],  ind[12], ind[13],                     # v2_EA, J1_EA, J2_EA
+        ind[6],  ind[14], ind[15],                     # v2_AB, J1_AB, J2_AB
+        ind[7],  ind[16], ind[17],                     # v2_BC, J1_BC, J2_BC
+        ind[8],  ind[18], ind[19],                     # v2_CD, J1_CD, J2_CD
+        ind[9],  ind[20], ind[21],                     # v2_BE, J1_BE, J2_BE
+        ind[10], ind[22], ind[23],                     # v2_DE, J1_DE, J2_DE
+        ind[11], ind[24], ind[25],                     # v2_EE, J1_EE, J2_EE
+    )
 
 
 def avalia(ind):
     p = extrai_params(ind)
-    sol = odeint(twoBody, Y0, dobra_pontos,
-                 args=(p[0], p[5], p[12],
-                       p[1], p[6], p[13],
-                       p[2], p[7], p[14],
-                       p[3], p[8], p[15],
-                       p[4], p[9], p[10], p[11], p[16], p[17], p[18]))
+    sol = odeint(twoBody, Y0, dobra_pontos, args=p)
     pA, pB, pC, pD, pE = organiza_pontos(sol)
     return calcula_diferenca(pA, pB, pC, pD, pE)
-
 
 
 def cria_individuo():
     ind = []
     for _ in range(TAU_SIZE):
         ind.append(r.uniform(MIN_TAU, MAX_TAU))
-    for _ in range(K_SIZE):
-        ind.append(r.uniform(MIN_K, MAX_K))
-    for _ in range(N_SIZE):
-        ind.append(r.uniform(MIN_N, MAX_N))
+    for _ in range(V2_SIZE):
+        ind.append(r.uniform(MIN_V2, MAX_V2))
+    for _ in range(J_SIZE):
+        ind.append(r.uniform(MIN_J, MAX_J))
     for _ in range(IND_SIZE):
         ind.append(r.uniform(MIN_STRATEGY, MAX_STRATEGY))
     return ind
-
 
 
 def mutESLogNormal(ind, c, indpb):
@@ -154,12 +168,12 @@ def mutESLogNormal(ind, c, indpb):
             s_old = copy.deepcopy(ind[s_idx])
             v_old = copy.deepcopy(ind[indx])
 
-            if indx < TAU_SIZE:                   
+            if indx < TAU_SIZE:
                 lo, hi = MIN_TAU, MAX_TAU
-            elif indx < TAU_SIZE + K_SIZE:         
-                lo, hi = MIN_K, MAX_K
-            else:                                 
-                lo, hi = MIN_N, MAX_N
+            elif indx < TAU_SIZE + V2_SIZE:
+                lo, hi = MIN_V2, MAX_V2
+            else:
+                lo, hi = MIN_J, MAX_J
 
             tentativas = 0
             while True:
@@ -198,15 +212,9 @@ def selTournament(offspring, mu, tournsize):
     return chosen, chosen_apt
 
 
-
 def plota_resultados(ind, pasta):
     p = extrai_params(ind)
-    sol = odeint(twoBody, Y0, dobra_pontos,
-                 args=(p[0], p[5], p[12],
-                       p[1], p[6], p[13],
-                       p[2], p[7], p[14],
-                       p[3], p[8], p[15],
-                       p[4], p[9], p[10], p[11], p[16], p[17], p[18]))
+    sol = odeint(twoBody, Y0, dobra_pontos, args=p)
     pA, pB, pC, pD, pE = organiza_pontos(sol)
 
     fig, axs = plt.subplots(2, 3, figsize=(15, 8))
@@ -223,7 +231,7 @@ def plota_resultados(ind, pasta):
         ax.set_title(f'Variável {nome}')
         ax.set_xlabel('Tempo (h)')
         ax.set_ylabel('Concentração')
-        ax.legend() 
+        ax.legend()
 
     axs[1][2].axis('off')
 
@@ -232,7 +240,6 @@ def plota_resultados(ind, pasta):
     plt.savefig(caminho, dpi=300)
     plt.show()
     print(f"Gráfico salvo em: {caminho}")
-
 
 
 def main():
@@ -248,7 +255,7 @@ def main():
     inicio = time.time()
     with open(arquivo_resultados, "w") as f:
         f.write(f"SEED: {seed}\n")
-        f.write(f"BOUNDS: tau=[{MIN_TAU}, {MAX_TAU}]  K=[{MIN_K}, {MAX_K}]  N=[{MIN_N}, {MAX_N}]\n")
+        f.write(f"BOUNDS: tau=[{MIN_TAU}, {MAX_TAU}]  v2=[{MIN_V2}, {MAX_V2}]  J=[{MIN_J}, {MAX_J}]\n")
 
     for _ in range(MU):
         POPULACAO.append(cria_individuo())
@@ -303,4 +310,5 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    while True:
+        main()
