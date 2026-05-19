@@ -187,7 +187,7 @@ def selTournament(offspring, mu, tournsize):
 
 
 
-def plota_resultados(ind, pasta):
+def plota_resultados(ind, pasta, seed):
     p = extrai_params(ind)
     sol = odeint(twoBody, Y0, dobra_pontos,
                  args=(p[0], p[1], p[2], p[3], p[4],
@@ -213,7 +213,7 @@ def plota_resultados(ind, pasta):
     axs[1][2].axis('off')
 
     plt.tight_layout()
-    caminho = os.path.join(pasta, f'graficos_{METODO}.png')
+    caminho = os.path.join(pasta, f'graficos_{METODO}_seed{seed}.png')
     plt.savefig(caminho, dpi=300)
     plt.show()
     print(f"Gráfico salvo em: {caminho}")
@@ -284,7 +284,7 @@ def main():
         f.write(f"Parâmetros: {POPULACAO[indice_menor][:IND_SIZE]}\n")
         f.write(f"Tempo total: {horas:02d}h {minutos:02d}m {segundos:02d}s\n")
 
-    plota_resultados(POPULACAO[indice_menor], pasta)
+    plota_resultados(POPULACAO[indice_menor], pasta, seed)
 
 
 if __name__ == "__main__":

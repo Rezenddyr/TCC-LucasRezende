@@ -1,0 +1,116 @@
+MODELO ABCD
+
+def twoBody(y, t, tauA, tauB, tauC, tauD, kAA, kAB, kAD, kBC, kBD, kCA, kCD, kDA, kDD, nAA, nAB, nAD, nBC, nBD, nCA, nCD, nDA, nDD):
+    ydot = np.empty((4,))
+
+
+    #tauA, kAA, kAB, kAD, nAA, nAB, nAD
+
+    ydot[0] = ((((1 - ((pow(y[0]/maximo_A, nAA)) / (pow(y[0]/maximo_A, nAA) + pow(kAA, nAA))))
+    *
+    (1 - ((pow(y[3]/maximo_D, nAD)) / (pow(y[3]/maximo_D, nAD) + pow(kAD, nAD)))))
+    +
+    ((((pow(y[1]/maximo_B, nAB)) / (pow(y[1]/maximo_B, nAB) + pow(kAB, nAB))))
+    *
+    (1 - ((pow(y[3]/maximo_D, nAD)) / (pow(y[3]/maximo_D, nAD) + pow(kAD, nAD)))))
+    +
+    ((((pow(y[0]/maximo_A, nAA)) / (pow(y[0]/maximo_A, nAA) + pow(kAA, nAA))))
+    *
+    (1 - ((pow(y[1]/maximo_B, nAB)) / (pow(y[1]/maximo_B, nAB) + pow(kAB, nAB))))
+    *
+    (((pow(y[3]/maximo_D, nAD)) / (pow(y[3]/maximo_D, nAD) + pow(kAD, nAD))))
+    )) - (y[0]/maximo_A)) / tauA
+
+    #tauB, kBC, kBD, nBC, nBD
+
+    ydot[1] = (((1 - ((pow(y[2]/maximo_C, nBC)) / (pow(y[2]/maximo_C, nBC) + pow(kBC, nBC))))
+    +
+    (((pow(y[3]/maximo_D, nBD)) / (pow(y[3]/maximo_D, nBD) + pow(kBD, nBD))))) - (y[1]/maximo_B)) / tauB
+
+
+    #tauC, kCA, kCD, nCA, nCD
+
+    ydot[2] = (((((pow(y[3]/maximo_D, nCD)) / (pow(y[3]/maximo_D, nCD) + pow(kCD, nCD))))
+    +
+    (1 - ((pow(y[0]/maximo_A, nCA)) / (pow(y[0]/maximo_A, nCA) + pow(kCA, nCA))))) - (y[2]/maximo_C)) / tauC
+
+
+    #tauD, kDA, kDD, nDA, nDD
+
+    ydot[3] = (((1 - ((pow(y[0]/maximo_A, nDA)) / (pow(y[0]/maximo_A, nDA) + pow(kDA, nDA))))
+    *
+    (1 - ((pow(y[3]/maximo_D, nDD)) / (pow(y[3]/maximo_D, nDD) + pow(kDD, nDD))))) - (y[3]/maximo_D)) / tauD
+
+    return ydot
+
+
+TRP E COLI
+
+def twoBody(y, t, tauA, tauB, tauC, tauD, tauE, kAA, kAC, kAD, kAE, kBA, kBC, kBD, kBE, kCD, kCE, kDC, kEA, kEB, kEC, kEE, nAA, nAC, nAD, nAE, nBA, nBC, nBD, nBE, nCD, nCE, nDC, nEA, nEB, nEC, nEE):
+    ydot = np.empty((5,))
+
+
+    #tauA, kAA, kAC, kAD, kAE, nAA, nAC, nAD, nAE
+
+    ydot[0] = ((((1 - ((pow(y[0]/maximo_A, nAA)) / (pow(y[0]/maximo_A, nAA) + pow(kAA, nAA))))
+    *
+    (1 - ((pow(y[3]/maximo_D, nAD)) / (pow(y[3]/maximo_D, nAD) + pow(kAD, nAD))))
+    *
+    (1 - ((pow(y[4]/maximo_E, nAE)) / (pow(y[4]/maximo_E, nAE) + pow(kAE, nAE)))))
+    +
+    ((1 - ((pow(y[0]/maximo_A, nAA)) / (pow(y[0]/maximo_A, nAA) + pow(kAA, nAA))))
+    *
+    (1 - ((pow(y[2]/maximo_C, nAC)) / (pow(y[2]/maximo_C, nAC) + pow(kAC, nAC))))
+    *
+    (((pow(y[4]/maximo_E, nAE)) / (pow(y[4]/maximo_E, nAE) + pow(kAE, nAE)))))
+    +
+    ((((pow(y[0]/maximo_A, nAA)) / (pow(y[0]/maximo_A, nAA) + pow(kAA, nAA))))
+    *
+    (((pow(y[3]/maximo_D, nAD)) / (pow(y[3]/maximo_D, nAD) + pow(kAD, nAD))))
+    *
+    (1 - ((pow(y[4]/maximo_E, nAE)) / (pow(y[4]/maximo_E, nAE) + pow(kAE, nAE)))))) - (y[0]/maximo_A)) / tauA
+
+    #tauB, kBA, kBC, kBD, kBE, nBA, nBC, nBD, nBE
+
+    ydot[1] = ((((1 - ((pow(y[0]/maximo_A, nBA)) / (pow(y[0]/maximo_A, nBA) + pow(kBA, nBA))))
+    *
+    (1 - ((pow(y[3]/maximo_D, nBD)) / (pow(y[3]/maximo_D, nBD) + pow(kBD, nBD))))
+    *
+    (1 - ((pow(y[4]/maximo_E, nBE)) / (pow(y[4]/maximo_E, nBE) + pow(kBE, nBE)))))
+    +
+    ((1 - ((pow(y[0]/maximo_A, nBA)) / (pow(y[0]/maximo_A, nBA) + pow(kBA, nBA))))
+    *
+    (1 - ((pow(y[2]/maximo_C, nBC)) / (pow(y[2]/maximo_C, nBC) + pow(kBC, nBC))))
+    *
+    (((pow(y[4]/maximo_E, nBE)) / (pow(y[4]/maximo_E, nBE) + pow(kBE, nBE)))))
+    +
+    ((((pow(y[0]/maximo_A, nBA)) / (pow(y[0]/maximo_A, nBA) + pow(kBA, nBA))))
+    *
+    (((pow(y[3]/maximo_D, nBD)) / (pow(y[3]/maximo_D, nBD) + pow(kBD, nBD))))
+    *
+    (1 - ((pow(y[4]/maximo_E, nBE)) / (pow(y[4]/maximo_E, nBE) + pow(kBE, nBE)))))) - (y[1]/maximo_B)) / tauB
+
+
+    #tauC, kCD, kCE, nCD, nCE
+
+    ydot[2] = (((((pow(y[3]/maximo_D, nCD)) / (pow(y[3]/maximo_D, nCD) + pow(kCD, nCD)))) * (((pow(y[4]/maximo_E, nCE)) / (pow(y[4]/maximo_E, nCE) + pow(kCE, nCE))))) - (y[2]/maximo_C)) / tauC
+
+
+    #tauD, kDC, nDC
+
+    ydot[3] = ((((pow(y[2]/maximo_C, nDC)) / (pow(y[2]/maximo_C, nDC) + pow(kDC, nDC)))) - (y[3]/maximo_D)) / tauD
+
+    #tauE, kAE, kBE, kCE, kEE, nAE, nBE, nCE, nEE
+
+    ydot[4] = (((((pow(y[0]/maximo_A, nEA)) / (pow(y[0]/maximo_A, nEA) + pow(kEA, nEA)))
+    *
+    ((pow(y[1]/maximo_B, nEB)) / (pow(y[1]/maximo_B, nEB) + pow(kEB, nEB)))
+    *
+    ((pow(y[2]/maximo_C, nEC)) / (pow(y[2]/maximo_C, nEC) + pow(kEC, nEC))))
+    +
+    ((pow(y[4]/maximo_E, nEE)) / (pow(y[4]/maximo_E, nEE) + pow(kEE, nEE)))) - (y[4]/maximo_E)) / tauE
+
+    return ydot
+
+
+

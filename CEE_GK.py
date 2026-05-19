@@ -125,14 +125,14 @@ def calcula_diferenca(pA, pB, pC, pD, pE):
 
 def extrai_params(ind):
     return (
-        ind[0],  ind[1],  ind[2],  ind[3],  ind[4],   # tauA..tauE
-        ind[5],  ind[12], ind[13],                     # v2_EA, J1_EA, J2_EA
-        ind[6],  ind[14], ind[15],                     # v2_AB, J1_AB, J2_AB
-        ind[7],  ind[16], ind[17],                     # v2_BC, J1_BC, J2_BC
-        ind[8],  ind[18], ind[19],                     # v2_CD, J1_CD, J2_CD
-        ind[9],  ind[20], ind[21],                     # v2_BE, J1_BE, J2_BE
-        ind[10], ind[22], ind[23],                     # v2_DE, J1_DE, J2_DE
-        ind[11], ind[24], ind[25],                     # v2_EE, J1_EE, J2_EE
+        ind[0],  ind[1],  ind[2],  ind[3],  ind[4],   
+        ind[5],  ind[12], ind[13],                     
+        ind[6],  ind[14], ind[15],                    
+        ind[7],  ind[16], ind[17],                     
+        ind[8],  ind[18], ind[19],                    
+        ind[9],  ind[20], ind[21],                    
+        ind[10], ind[22], ind[23],                     
+        ind[11], ind[24], ind[25],                     
     )
 
 
@@ -212,7 +212,7 @@ def selTournament(offspring, mu, tournsize):
     return chosen, chosen_apt
 
 
-def plota_resultados(ind, pasta):
+def plota_resultados(ind, pasta, seed):
     p = extrai_params(ind)
     sol = odeint(twoBody, Y0, dobra_pontos, args=p)
     pA, pB, pC, pD, pE = organiza_pontos(sol)
@@ -236,7 +236,7 @@ def plota_resultados(ind, pasta):
     axs[1][2].axis('off')
 
     plt.tight_layout()
-    caminho = os.path.join(pasta, f'graficos_{METODO}.png')
+    caminho = os.path.join(pasta, f'graficos_{METODO}_seed{seed}.png')
     plt.savefig(caminho, dpi=300)
     plt.show()
     print(f"Gráfico salvo em: {caminho}")
@@ -306,7 +306,7 @@ def main():
         f.write(f"Parâmetros: {POPULACAO[indice_menor][:IND_SIZE]}\n")
         f.write(f"Tempo total: {horas:02d}h {minutos:02d}m {segundos:02d}s\n")
 
-    plota_resultados(POPULACAO[indice_menor], pasta)
+    plota_resultados(POPULACAO[indice_menor], pasta, seed)
 
 
 if __name__ == "__main__":
