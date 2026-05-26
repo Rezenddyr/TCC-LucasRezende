@@ -39,8 +39,8 @@ D_ORIGINAL = copy.deepcopy(D)
 dobra_pontos = copy.deepcopy(x)
 Y0 = [A[0], B[0], C[0], D[0]]
 
-# tau(4) + k(9)  — n fixo em 1 (Michaelis-Menten)
-IND_SIZE     = 13
+# tau(4) + k(4) + n(4) + Vmax(3) = 15
+IND_SIZE     = 15
 MIN_STRATEGY = 0.1
 MAX_STRATEGY = 10.0
 
@@ -49,36 +49,34 @@ APTIDAO        = []
 APTIDAO_FILHOS = []
 
 
-def mm(v, k):
+def hill(v, n, k):
     if v <= 0.0:
         return 0.0
-    return v / (v + k)
+    vn = v ** n
+    return vn / (vn + k ** n)
 
 
 def twoBody(y, t,
             tauA, tauB, tauC, tauD,
-            kAA, kAB, kAD, kBC, kBD, kCA, kCD, kDA, kDD):
+            kBA, kBD, kCB, kDC,
+            nBA, nBD, nCB, nDC,
+            VmaxB, VmaxC, VmaxD):
 
     NA = y[0] / maximo_A
     NB = y[1] / maximo_B
     NC = y[2] / maximo_C
     ND = y[3] / maximo_D
 
-    hAA = mm(NA, kAA)
-    hAB = mm(NB, kAB)
-    hAD = mm(ND, kAD)
-    hBC = mm(NC, kBC)
-    hBD = mm(ND, kBD)
-    hCA = mm(NA, kCA)
-    hCD = mm(ND, kCD)
-    hDA = mm(NA, kDA)
-    hDD = mm(ND, kDD)
+    hBA = hill(NA, nBA, kBA)
+    hBD = hill(ND, nBD, kBD)
+    hCB = hill(NB, nCB, kCB)
+    hDC = hill(NC, nDC, kDC)
 
     ydot = np.empty((4,))
-    ydot[0] = (((1-hAA)*(1-hAD) + hAB*(1-hAD) + hAA*(1-hAB)*hAD) - NA) / tauA
-    ydot[1] = (((1-hBC) + hBD) - NB) / tauB
-    ydot[2] = ((hCD + (1-hCA)) - NC) / tauC
-    ydot[3] = (((1-hDA)*(1-hDD)) - ND) / tauD
+    ydot[0] = (1 - NA) / tauA
+    ydot[1] = ((VmaxB * (hBA)*(hBD)) - NB) / tauB
+    ydot[2] = (VmaxC * (hCB) - NC) / tauC
+    ydot[3] = (VmaxD * (1-hDC) - ND) / tauD
     return ydot
 
 
@@ -111,8 +109,10 @@ def avalia(ind):
 
 
 def get_bounds(indx):
-    if indx < 4: return 0.1, 5.0
-    return 0.001, 0.999
+    if indx < 4:   return 0.1,   5.0
+    if indx < 8:   return 0.001, 0.999
+    if indx < 12:  return 1.0,   10.0
+    return 1.0, 10.0
 
 
 def cria_individuo():

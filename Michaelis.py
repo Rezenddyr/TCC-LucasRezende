@@ -26,10 +26,9 @@ def gerar_mm(boolecube, simbolos_entrada, nome_saida):
         reg = sym.name
         N_v = sp.Symbol(f'N_{reg}')
         Km  = sp.Symbol(f'Km_{reg}{nome_saida}')
+        Vm  = sp.Symbol(f'Vm_{reg}{nome_saida}')
 
-        f_x    = N_v / (Km + N_v)
-        f_1    = sp.Integer(1) / (Km + sp.Integer(1))
-        f_norm = sp.simplify(f_x / f_1)
+        f_norm = Vm * N_v / (Km + N_v)
 
         expr = expr.subs(sym, f_norm)
 

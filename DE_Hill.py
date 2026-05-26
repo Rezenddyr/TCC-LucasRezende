@@ -7,8 +7,7 @@ import math
 import os
 import time
 
-METODO = "ES_Hill"
-
+METODO = "DE_Hill"
 
 arquivo = open("GRN5.txt", 'r')
 x, A, B, C, D, E = [], [], [], [], [], []
@@ -37,27 +36,40 @@ E_ORIGINAL = copy.deepcopy(E)
 dobra_pontos = copy.deepcopy(x)
 Y0 = [A[0], B[0], C[0], D[0], E[0]]
 
+# tau(5) + k(7) + n(7) + vmax(5) = 24
+IND_SIZE  = 24
+TAU_SIZE  = 5
+K_SIZE    = 7
+N_SIZE    = 7
+VMAX_SIZE = 5
 
-IND_SIZE     = 24
-TAU_SIZE     = 5
-K_SIZE       = 7
-N_SIZE       = 7
-VMAX_SIZE    = 5
+MIN_TAU  = 0.1
+MAX_TAU  = 5.0
+MIN_K    = 0.1
+MAX_K    = 1.0
+MIN_N    = 1.0
+MAX_N    = 25.0
+MIN_VMAX = 0.1
+MAX_VMAX = 2.0
 
-MIN_TAU      = 0.1
-MAX_TAU      = 5.0
-MIN_K        = 0.1
-MAX_K        = 1.0
-MIN_N        = 1.0
-MAX_N        = 25.0
-MIN_VMAX     = 0.1
-MAX_VMAX     = 2.0
-MIN_STRATEGY = 0.1
-MAX_STRATEGY = 10.0
+# Parâmetros da Evolução Diferencial
+NP = 50   # tamanho da população
+F  = 0.8  # fator de escala (mutação)
+CR = 0.9  # taxa de cruzamento (crossover)
 
-POPULACAO      = []
-APTIDAO        = []
-APTIDAO_FILHOS = []
+POPULACAO = []
+APTIDAO   = []
+
+
+def get_bounds(indx):
+    if indx < TAU_SIZE:
+        return MIN_TAU, MAX_TAU
+    elif indx < TAU_SIZE + K_SIZE:
+        return MIN_K, MAX_K
+    elif indx < TAU_SIZE + K_SIZE + N_SIZE:
+        return MIN_N, MAX_N
+    else:
+        return MIN_VMAX, MAX_VMAX
 
 
 def twoBody(y, t, tauA, kA, nA, vmaxA,
@@ -85,7 +97,6 @@ def twoBody(y, t, tauA, kA, nA, vmaxA,
     ydot[4] = (vmaxE * ((HB * HD) + (HD * HE)) - y[4]/maximo_E) / tauE
 
     return ydot
-
 
 
 def organiza_pontos(solucao):
@@ -120,91 +131,47 @@ def extrai_params(ind):
 
 
 def avalia(ind):
-    p = extrai_params(ind)
-    sol = odeint(twoBody, Y0, dobra_pontos,
-                 args=(p[0], p[5], p[12], p[19],
-                       p[1], p[6], p[13], p[20],
-                       p[2], p[7], p[14], p[21],
-                       p[3], p[8], p[15], p[22],
-                       p[4], p[9], p[10], p[11], p[16], p[17], p[18], p[23]))
-    pA, pB, pC, pD, pE = organiza_pontos(sol)
-    return calcula_diferenca(pA, pB, pC, pD, pE)
-
+    try:
+        p = extrai_params(ind)
+        sol = odeint(twoBody, Y0, dobra_pontos,
+                     args=(p[0], p[5], p[12], p[19],
+                           p[1], p[6], p[13], p[20],
+                           p[2], p[7], p[14], p[21],
+                           p[3], p[8], p[15], p[22],
+                           p[4], p[9], p[10], p[11], p[16], p[17], p[18], p[23]))
+        if np.any(np.isnan(sol)) or np.any(np.isinf(sol)):
+            return float('inf')
+        pA, pB, pC, pD, pE = organiza_pontos(sol)
+        return calcula_diferenca(pA, pB, pC, pD, pE)
+    except Exception:
+        return float('inf')
 
 
 def cria_individuo():
-    ind = []
-    for _ in range(TAU_SIZE):
-        ind.append(r.uniform(MIN_TAU, MAX_TAU))
-    for _ in range(K_SIZE):
-        ind.append(r.uniform(MIN_K, MAX_K))
-    for _ in range(N_SIZE):
-        ind.append(r.uniform(MIN_N, MAX_N))
-    for _ in range(VMAX_SIZE):
-        ind.append(r.uniform(MIN_VMAX, MAX_VMAX))
-    for _ in range(IND_SIZE):
-        ind.append(r.uniform(MIN_STRATEGY, MAX_STRATEGY))
-    return ind
+    return [r.uniform(*get_bounds(i)) for i in range(IND_SIZE)]
 
 
-
-def mutESLogNormal(ind, c, indpb):
-    t  = c / math.sqrt(2.0 * math.sqrt(IND_SIZE))
-    t0 = c / math.sqrt(2.0 * IND_SIZE)
-    n  = r.gauss(0, 1)
-    t0_n = t0 * n
-
-    for indx in range(IND_SIZE):
-        if r.random() < indpb:
-            s_idx = indx + IND_SIZE
-            s_old = copy.deepcopy(ind[s_idx])
-            v_old = copy.deepcopy(ind[indx])
-
-            if indx < TAU_SIZE:
-                lo, hi = MIN_TAU, MAX_TAU
-            elif indx < TAU_SIZE + K_SIZE:
-                lo, hi = MIN_K, MAX_K
-            elif indx < TAU_SIZE + K_SIZE + N_SIZE:
-                lo, hi = MIN_N, MAX_N
-            else:
-                lo, hi = MIN_VMAX, MAX_VMAX
-
-            tentativas = 0
-            while True:
-                ind[s_idx] = s_old * math.exp(t0_n + t * r.gauss(0, 1))
-                ind[s_idx] = min(ind[s_idx], MAX_STRATEGY)
-                ind[indx]  = v_old * ind[s_idx] * r.gauss(0, 1)
-                tentativas += 1
-                if lo <= ind[indx] <= hi or tentativas > 50:
-                    if not (lo <= ind[indx] <= hi):
-                        ind[s_idx] = s_old
-                        ind[indx]  = v_old
-                    break
-
-    return ind
+def mutacao_de(idx_alvo):
+    # DE/rand/1: v = x_r1 + F * (x_r2 - x_r3)
+    indices = list(range(NP))
+    indices.remove(idx_alvo)
+    r1, r2, r3 = r.sample(indices, 3)
+    mutante = []
+    for j in range(IND_SIZE):
+        lo, hi = get_bounds(j)
+        v = POPULACAO[r1][j] + F * (POPULACAO[r2][j] - POPULACAO[r3][j])
+        mutante.append(max(lo, min(hi, v)))
+    return mutante
 
 
-def varOr(populacao, lambda_):
-    offspring = []
-    for _ in range(lambda_):
-        pai = copy.deepcopy(r.choice(populacao))
-        filho = mutESLogNormal(pai, 1.0, 0.03)
-        offspring.append(filho)
-    return offspring
-
-
-def selTournament(offspring, mu, tournsize):
-    indices_validos = list(range(len(APTIDAO_FILHOS)))
-    chosen, chosen_apt = [], []
-    for _ in range(mu):
-        aspirants = r.sample(indices_validos, min(tournsize, len(indices_validos)))
-        aptidoes  = [APTIDAO_FILHOS[i] for i in aspirants]
-        menor_erro = min(aptidoes)
-        idx_melhor = aspirants[aptidoes.index(menor_erro)]
-        chosen.append(offspring[idx_melhor])
-        chosen_apt.append(menor_erro)
-    return chosen, chosen_apt
-
+def cruzamento_de(alvo, mutante):
+    # Cruzamento binomial: garante ao menos um gene do mutante (j_rand)
+    trial = copy.deepcopy(alvo)
+    j_rand = r.randint(0, IND_SIZE - 1)
+    for j in range(IND_SIZE):
+        if r.random() < CR or j == j_rand:
+            trial[j] = mutante[j]
+    return trial
 
 
 def plota_resultados(ind, pasta, seed):
@@ -231,24 +198,20 @@ def plota_resultados(ind, pasta, seed):
         ax.set_title(f'Variável {nome}')
         ax.set_xlabel('Tempo (h)')
         ax.set_ylabel('Concentração')
-        ax.legend() 
+        ax.legend()
 
     axs[1][2].axis('off')
 
     plt.tight_layout()
     caminho = os.path.join(pasta, f'graficos_{METODO}_seed{seed}.png')
     plt.savefig(caminho, dpi=300)
-    plt.close()
+    plt.show()
     print(f"Gráfico salvo em: {caminho}")
 
 
-
-def main(seed):
+def main():
+    seed = int(time.time())
     r.seed(seed)
-    POPULACAO.clear()
-    APTIDAO.clear()
-    APTIDAO_FILHOS.clear()
-    MU, LAMBDA = 15, 105
 
     pasta = METODO
     os.makedirs(pasta, exist_ok=True)
@@ -258,28 +221,26 @@ def main(seed):
     inicio = time.time()
     with open(arquivo_resultados, "w") as f:
         f.write(f"SEED: {seed}\n")
-        f.write(f"BOUNDS: tau=[{MIN_TAU}, {MAX_TAU}]  K=[{MIN_K}, {MAX_K}]  N=[{MIN_N}, {MAX_N}]\n")
+        f.write(f"NP: {NP}  F: {F}  CR: {CR}\n")
+        f.write(f"BOUNDS: tau=[{MIN_TAU}, {MAX_TAU}]  K=[{MIN_K}, {MAX_K}]"
+                f"  N=[{MIN_N}, {MAX_N}]  Vmax=[{MIN_VMAX}, {MAX_VMAX}]\n")
 
-    for _ in range(MU):
+    POPULACAO.clear()
+    APTIDAO.clear()
+    for _ in range(NP):
         POPULACAO.append(cria_individuo())
     for ind in POPULACAO:
         APTIDAO.append(avalia(ind))
 
     for gen in range(10001):
-        offspring = varOr(POPULACAO, LAMBDA)
-
-        APTIDAO_FILHOS.clear()
-        for ind in offspring:
-            dif = avalia(ind)
-            if not math.isnan(dif):
-                APTIDAO_FILHOS.append(dif)
-
-        novos_pais, novas_aptidoes = selTournament(offspring, MU, 3)
-
-        POPULACAO.clear()
-        POPULACAO.extend(novos_pais)
-        APTIDAO.clear()
-        APTIDAO.extend(novas_aptidoes)
+        for i in range(NP):
+            mutante = mutacao_de(i)
+            trial   = cruzamento_de(POPULACAO[i], mutante)
+            apt_trial = avalia(trial)
+            # seleção gulosa: substitui apenas se o trial for melhor
+            if apt_trial <= APTIDAO[i]:
+                POPULACAO[i] = trial
+                APTIDAO[i]   = apt_trial
 
         if gen % 100 == 0:
             menor_valor  = min(APTIDAO)
@@ -294,28 +255,23 @@ def main(seed):
     indice_menor = APTIDAO.index(menor_valor)
 
     tempo_total = time.time() - inicio
-    horas   = int(tempo_total // 3600)
-    minutos = int((tempo_total % 3600) // 60)
+    horas    = int(tempo_total // 3600)
+    minutos  = int((tempo_total % 3600) // 60)
     segundos = int(tempo_total % 60)
 
     print(f"\n--- RESULTADO FINAL ---")
     print(f"Erro (norma-1): {menor_valor}")
-    print(f"Parâmetros: {POPULACAO[indice_menor][:IND_SIZE]}")
+    print(f"Parâmetros: {POPULACAO[indice_menor]}")
     print(f"Tempo total: {horas:02d}h {minutos:02d}m {segundos:02d}s")
 
     with open(arquivo_resultados, "a") as f:
         f.write(f"\n--- RESULTADO FINAL ---\n")
         f.write(f"Erro (norma-1): {menor_valor}\n")
-        f.write(f"Parâmetros: {POPULACAO[indice_menor][:IND_SIZE]}\n")
+        f.write(f"Parâmetros: {POPULACAO[indice_menor]}\n")
         f.write(f"Tempo total: {horas:02d}h {minutos:02d}m {segundos:02d}s\n")
 
     plota_resultados(POPULACAO[indice_menor], pasta, seed)
 
 
-SEEDS = [
-    1778719796, 1778749666, 1778837425, 1778893788, 1778981565,
-]
-
 if __name__ == "__main__":
-    for s in SEEDS:
-        main(s)
+    main()
