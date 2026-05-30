@@ -205,13 +205,13 @@ def plota_resultados(ind, pasta, seed):
     plt.tight_layout()
     caminho = os.path.join(pasta, f'graficos_{METODO}_seed{seed}.png')
     plt.savefig(caminho, dpi=300)
-    plt.show()
     print(f"Gráfico salvo em: {caminho}")
 
 
-def main():
-    seed = int(time.time())
+def main(seed):
     r.seed(seed)
+    POPULACAO.clear()
+    APTIDAO.clear()
 
     pasta = METODO
     os.makedirs(pasta, exist_ok=True)
@@ -225,8 +225,6 @@ def main():
         f.write(f"BOUNDS: tau=[{MIN_TAU}, {MAX_TAU}]  K=[{MIN_K}, {MAX_K}]"
                 f"  N=[{MIN_N}, {MAX_N}]  Vmax=[{MIN_VMAX}, {MAX_VMAX}]\n")
 
-    POPULACAO.clear()
-    APTIDAO.clear()
     for _ in range(NP):
         POPULACAO.append(cria_individuo())
     for ind in POPULACAO:
@@ -273,5 +271,11 @@ def main():
     plota_resultados(POPULACAO[indice_menor], pasta, seed)
 
 
+SEEDS = [
+    1778434285, 1778461231, 1778490666, 1778578247, 1778663936,
+    1778719796, 1778749666, 1778837425, 1778893788, 1778981565,
+]
+
 if __name__ == "__main__":
-    main()
+    for s in SEEDS:
+        main(s)

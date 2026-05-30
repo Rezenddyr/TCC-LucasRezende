@@ -186,13 +186,13 @@ def plota_resultados(ind, pasta, seed):
         ax.set_ylabel('Concentração');    ax.legend()
     plt.tight_layout()
     caminho = os.path.join(pasta, f'graficos_{METODO}_seed{seed}.png')
-    plt.savefig(caminho, dpi=300); plt.show()
+    plt.savefig(caminho, dpi=300); plt.close()
     print(f"Gráfico salvo em: {caminho}")
 
 
-def main():
+def main(seed):
     POPULACAO.clear(); APTIDAO.clear()
-    seed = int(time.time()); r.seed(seed)
+    r.seed(seed)
     MU, LAMBDA = 15, 105
     pasta = METODO; os.makedirs(pasta, exist_ok=True)
     arq_res = os.path.join(pasta, f'resultados_{METODO}_seed{seed}.txt')
@@ -228,6 +228,11 @@ def main():
     plota_resultados(POPULACAO[mi], pasta, seed)
 
 
+SEEDS = [
+    1778434285, 1778461231, 1778490666, 1778578247, 1778663936,
+    1778719796, 1778749666, 1778837425, 1778893788, 1778981565,
+]
+
 if __name__ == "__main__":
-    while True:
-        main()
+    for s in SEEDS:
+        main(s)
