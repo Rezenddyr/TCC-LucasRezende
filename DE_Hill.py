@@ -205,6 +205,7 @@ def plota_resultados(ind, pasta, seed):
     plt.tight_layout()
     caminho = os.path.join(pasta, f'graficos_{METODO}_seed{seed}.png')
     plt.savefig(caminho, dpi=300)
+    plt.close()
     print(f"Gráfico salvo em: {caminho}")
 
 

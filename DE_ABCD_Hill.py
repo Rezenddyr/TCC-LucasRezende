@@ -6,90 +6,102 @@ from scipy.optimize import differential_evolution
 import os
 import time
 
-METODO = "DE_MM"
+METODO = "DE_ABCD_Hill"
 
-arquivo = open("GRN5.txt", 'r')
-x, A, B, C, D, E = [], [], [], [], [], []
+arquivo = open("Dados_abcd.txt", 'r')
+x, A, B, C, D = [], [], [], [], []
+primeira = True
 for linha in arquivo:
-    elementos = linha.split()
-    x.append(float(elementos[0].strip()))
-    A.append(float(elementos[1].strip()))
-    B.append(float(elementos[2].strip()))
-    C.append(float(elementos[3].strip()))
-    D.append(float(elementos[4].strip()))
-    E.append(float(elementos[5].strip()))
+    if primeira:
+        primeira = False
+        continue
+    el = linha.split()
+    if not el:
+        continue
+    x.append(float(el[0]))
+    A.append(float(el[1]))
+    B.append(float(el[2]))
+    C.append(float(el[3]))
+    D.append(float(el[4]))
 arquivo.close()
 
 maximo_A = max(A)
 maximo_B = max(B)
 maximo_C = max(C)
 maximo_D = max(D)
-maximo_E = max(E)
 
 A_ORIGINAL = copy.deepcopy(A)
 B_ORIGINAL = copy.deepcopy(B)
 C_ORIGINAL = copy.deepcopy(C)
 D_ORIGINAL = copy.deepcopy(D)
-E_ORIGINAL = copy.deepcopy(E)
 
 dobra_pontos = copy.deepcopy(x)
-Y0 = [A[0], B[0], C[0], D[0], E[0]]
+Y0 = [A[0], B[0], C[0], D[0]]
 
-# tau(5) + k(7) + vmax(5) = 17
-IND_SIZE  = 17
-TAU_SIZE  = 5
-K_SIZE    = 7
-VMAX_SIZE = 5
+# tau(4) + k(4) + n(4) + Vmax(3) = 15
+MIN_TAU  = 0.1
+MAX_TAU  = 5.0
+MIN_K    = 0.001
+MAX_K    = 0.999
+MIN_N    = 1.0
+MAX_N    = 10.0
+MIN_VMAX = 1.0
+MAX_VMAX = 10.0
 
 BOUNDS = (
-    [(0.1,   5.0)]   * TAU_SIZE  +
-    [(0.001, 0.999)] * K_SIZE    +
-    [(1.0,   10.0)]  * VMAX_SIZE
+    [(MIN_TAU,  MAX_TAU)]  * 4 +
+    [(MIN_K,    MAX_K)]    * 4 +
+    [(MIN_N,    MAX_N)]    * 4 +
+    [(MIN_VMAX, MAX_VMAX)] * 3
 )
 
 
-def mm(v, k):
+def hill(v, n, k):
     if v <= 0.0:
         return 0.0
-    return v / (v + k)
+    vn = v ** n
+    return vn / (vn + k ** n)
 
 
 def twoBody(y, t,
-            tauA, tauB, tauC, tauD, tauE,
-            kA, kB, kC, kD, kEB, kED, kEE,
-            vmaxA, vmaxB, vmaxC, vmaxD, vmaxE):
+            tauA, tauB, tauC, tauD,
+            kBA, kBD, kCB, kDC,
+            nBA, nBD, nCB, nDC,
+            VmaxB, VmaxC, VmaxD):
 
-    ydot = np.empty((5,))
+    NA = y[0] / maximo_A
+    NB = y[1] / maximo_B
+    NC = y[2] / maximo_C
+    ND = y[3] / maximo_D
 
-    ydot[0] = (vmaxA * (1 - mm(y[4]/maximo_E, kA)) - y[0]/maximo_A) / tauA
-    ydot[1] = (vmaxB * mm(y[0]/maximo_A, kB)       - y[1]/maximo_B) / tauB
-    ydot[2] = (vmaxC * mm(y[1]/maximo_B, kC)       - y[2]/maximo_C) / tauC
-    ydot[3] = (vmaxD * mm(y[2]/maximo_C, kD)       - y[3]/maximo_D) / tauD
+    hBA = hill(NA, nBA, kBA)
+    hBD = hill(ND, nBD, kBD)
+    hCB = hill(NB, nCB, kCB)
+    hDC = hill(NC, nDC, kDC)
 
-    HB = mm(y[1]/maximo_B, kEB)
-    HD = mm(y[3]/maximo_D, kED)
-    HE = mm(y[4]/maximo_E, kEE)
-    ydot[4] = (vmaxE * ((HB * HD) + (HD * HE)) - y[4]/maximo_E) / tauE
-
+    ydot = np.empty((4,))
+    ydot[0] = (1 - NA) / tauA
+    ydot[1] = (VmaxB * hBA * hBD - NB) / tauB
+    ydot[2] = (VmaxC * hCB - NC) / tauC
+    ydot[3] = (VmaxD * (1 - hDC) - ND) / tauD
     return ydot
 
 
 def organiza_pontos(sol):
-    pA, pB, pC, pD, pE = [], [], [], [], []
+    pA, pB, pC, pD = [], [], [], []
     for pt in sol:
-        pA.append(pt[0]); pB.append(pt[1]); pC.append(pt[2])
-        pD.append(pt[3]); pE.append(pt[4])
-    return pA, pB, pC, pD, pE
+        pA.append(pt[0]); pB.append(pt[1])
+        pC.append(pt[2]); pD.append(pt[3])
+    return pA, pB, pC, pD
 
 
-def calcula_diferenca(pA, pB, pC, pD, pE):
+def calcula_diferenca(pA, pB, pC, pD):
     dif = 0
     for i in range(len(pA)):
         dif += abs(A_ORIGINAL[i] - pA[i])
         dif += abs(B_ORIGINAL[i] - pB[i])
         dif += abs(C_ORIGINAL[i] - pC[i])
         dif += abs(D_ORIGINAL[i] - pD[i])
-        dif += abs(E_ORIGINAL[i] - pE[i])
     return dif
 
 
@@ -105,29 +117,19 @@ def avalia(ind):
 
 def plota_resultados(ind, pasta, seed):
     sol = odeint(twoBody, Y0, dobra_pontos, args=tuple(ind))
-    pA, pB, pC, pD, pE = organiza_pontos(sol)
-
-    fig, axs = plt.subplots(2, 3, figsize=(15, 8))
+    pA, pB, pC, pD = organiza_pontos(sol)
+    fig, axs = plt.subplots(2, 2, figsize=(12, 8))
     fig.suptitle(f'Resultados — {METODO}', fontsize=14)
-
-    dados = [(pA, A_ORIGINAL, 'A'), (pB, B_ORIGINAL, 'B'),
-             (pC, C_ORIGINAL, 'C'), (pD, D_ORIGINAL, 'D'),
-             (pE, E_ORIGINAL, 'E')]
-
-    for idx, (pred, orig, nome) in enumerate(dados):
-        ax = axs[idx // 3][idx % 3]
+    for idx, (pred, orig, nome) in enumerate([(pA, A_ORIGINAL, 'A'), (pB, B_ORIGINAL, 'B'),
+                                               (pC, C_ORIGINAL, 'C'), (pD, D_ORIGINAL, 'D')]):
+        ax = axs[idx // 2][idx % 2]
         ax.plot(x, pred, label=f'{nome} predito')
         ax.plot(x, orig,  label=f'{nome} real')
-        ax.set_title(f'Variável {nome}')
-        ax.set_xlabel('Tempo (h)')
-        ax.set_ylabel('Concentração')
-        ax.legend()
-
-    axs[1][2].axis('off')
+        ax.set_title(f'Variável {nome}'); ax.set_xlabel('Tempo (h)')
+        ax.set_ylabel('Concentração');    ax.legend()
     plt.tight_layout()
     caminho = os.path.join(pasta, f'graficos_{METODO}_seed{seed}.png')
-    plt.savefig(caminho, dpi=300)
-    plt.close()
+    plt.savefig(caminho, dpi=300); plt.close()
     print(f"Gráfico salvo em: {caminho}")
 
 
@@ -141,7 +143,8 @@ def main(seed):
     with open(arquivo_resultados, "w") as f:
         f.write(f"SEED: {seed}\n")
         f.write(f"strategy=best1bin  popsize=15  F=0.8  CR=0.75  polish=True\n")
-        f.write(f"BOUNDS: tau=[0.1, 5.0]  K=[0.001, 0.999]  Vmax=[1.0, 10.0]\n")
+        f.write(f"BOUNDS: tau=[{MIN_TAU}, {MAX_TAU}]  k=[{MIN_K}, {MAX_K}]"
+                f"  n=[{MIN_N}, {MAX_N}]  Vmax=[{MIN_VMAX}, {MAX_VMAX}]\n")
 
     gen_log = [0]
 
@@ -170,7 +173,7 @@ def main(seed):
         updating='immediate'
     )
 
-    melhor_ind  = list(result.x)
+    melhor_ind  = [float(v) for v in result.x]
     menor_valor = result.fun
 
     tempo_total = time.time() - inicio
@@ -190,6 +193,7 @@ def main(seed):
         f.write(f"Tempo total: {horas:02d}h {minutos:02d}m {segundos:02d}s\n")
 
     plota_resultados(melhor_ind, pasta, seed)
+
 
 SEEDS = [
     1778434285, 1778461231, 1778490666, 1778578247, 1778663936,

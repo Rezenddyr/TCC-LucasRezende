@@ -3,11 +3,10 @@ import copy
 import random as r
 import numpy as np
 from scipy.integrate import odeint
-import math
 import os
 import time
 
-METODO = "ABCD_MM"
+METODO = "DE_ABCD_MM"
 
 arquivo = open("Dados_abcd.txt", 'r')
 x, A, B, C, D = [], [], [], [], []
@@ -45,18 +44,18 @@ TAU_SIZE  = 4
 K_SIZE    = 4
 VMAX_SIZE = 3
 
-MIN_TAU      = 0.1
-MAX_TAU      = 5.0
-MIN_K        = 0.001
-MAX_K        = 0.999
-MIN_VMAX     = 1.0
-MAX_VMAX     = 10.0
-MIN_STRATEGY = 0.1
-MAX_STRATEGY = 10.0
+MIN_TAU  = 0.1
+MAX_TAU  = 5.0
+MIN_K    = 0.001
+MAX_K    = 0.999
+MIN_VMAX = 1.0
+MAX_VMAX = 10.0
 
-POPULACAO      = []
-APTIDAO        = []
-APTIDAO_FILHOS = []
+F  = 0.8
+CR = 0.75
+
+POPULACAO = []
+APTIDAO   = []
 
 
 def mm(v, k):
@@ -108,7 +107,7 @@ def calcula_diferenca(pA, pB, pC, pD):
 
 def avalia(ind):
     try:
-        sol = odeint(twoBody, Y0, dobra_pontos, args=tuple(ind[:IND_SIZE]))
+        sol = odeint(twoBody, Y0, dobra_pontos, args=tuple(ind))
         if np.any(np.isnan(sol)) or np.any(np.isinf(sol)):
             return float('inf')
         return calcula_diferenca(*organiza_pontos(sol))
@@ -121,58 +120,43 @@ def cria_individuo():
     for _ in range(TAU_SIZE):  ind.append(r.uniform(MIN_TAU,  MAX_TAU))
     for _ in range(K_SIZE):    ind.append(r.uniform(MIN_K,    MAX_K))
     for _ in range(VMAX_SIZE): ind.append(r.uniform(MIN_VMAX, MAX_VMAX))
-    for _ in range(IND_SIZE):  ind.append(r.uniform(MIN_STRATEGY, MAX_STRATEGY))
     return ind
 
 
-def mutESLogNormal(ind, c, indpb):
-    t    = c / math.sqrt(2.0 * math.sqrt(IND_SIZE))
-    t0   = c / math.sqrt(2.0 * IND_SIZE)
-    t0_n = t0 * r.gauss(0, 1)
-    for indx in range(IND_SIZE):
-        if r.random() < indpb:
-            s_idx = indx + IND_SIZE
-            s_old, v_old = ind[s_idx], ind[indx]
-            if indx < TAU_SIZE:
-                lo, hi = MIN_TAU, MAX_TAU
-            elif indx < TAU_SIZE + K_SIZE:
-                lo, hi = MIN_K, MAX_K
-            else:
-                lo, hi = MIN_VMAX, MAX_VMAX
-            tentativas = 0
-            while True:
-                ind[s_idx] = min(s_old * math.exp(t0_n + t * r.gauss(0, 1)), MAX_STRATEGY)
-                ind[indx]  = v_old * ind[s_idx] * r.gauss(0, 1)
-                tentativas += 1
-                if lo <= ind[indx] <= hi or tentativas > 50:
-                    if not (lo <= ind[indx] <= hi):
-                        ind[s_idx], ind[indx] = s_old, v_old
-                    break
-    return ind
+def limites_gene(j):
+    if j < TAU_SIZE:
+        return MIN_TAU, MAX_TAU
+    elif j < TAU_SIZE + K_SIZE:
+        return MIN_K, MAX_K
+    else:
+        return MIN_VMAX, MAX_VMAX
 
 
-def varOr(populacao, lambda_):
-    offspring = []
-    for _ in range(lambda_):
-        filho = mutESLogNormal(copy.deepcopy(r.choice(populacao)), 1.0, 0.03)
-        offspring.append(filho)
-    return offspring
+def mutacao_DE(populacao, aptidao, idx):
+    melhor_idx = aptidao.index(min(aptidao))
+    candidatos = [i for i in range(len(populacao)) if i != idx]
+    r1, r2 = r.sample(candidatos, 2)
+    mutante = []
+    for j in range(IND_SIZE):
+        m = populacao[melhor_idx][j] + F * (populacao[r1][j] - populacao[r2][j])
+        mutante.append(m)
+    return mutante
 
 
-def selTournament(offspring, mu, tournsize):
-    indices = list(range(len(APTIDAO_FILHOS)))
-    chosen, chosen_apt = [], []
-    for _ in range(mu):
-        asp   = r.sample(indices, min(tournsize, len(indices)))
-        apts  = [APTIDAO_FILHOS[i] for i in asp]
-        menor = min(apts)
-        chosen.append(offspring[asp[apts.index(menor)]])
-        chosen_apt.append(menor)
-    return chosen, chosen_apt
+def cruzamento_DE(alvo, mutante):
+    j_rand = r.randint(0, IND_SIZE - 1)
+    trial = []
+    for j in range(IND_SIZE):
+        lo, hi = limites_gene(j)
+        if r.random() < CR or j == j_rand:
+            trial.append(max(lo, min(hi, mutante[j])))
+        else:
+            trial.append(alvo[j])
+    return trial
 
 
 def plota_resultados(ind, pasta, seed):
-    sol = odeint(twoBody, Y0, dobra_pontos, args=tuple(ind[:IND_SIZE]))
+    sol = odeint(twoBody, Y0, dobra_pontos, args=tuple(ind))
     pA, pB, pC, pD = organiza_pontos(sol)
     fig, axs = plt.subplots(2, 2, figsize=(12, 8))
     fig.suptitle(f'Resultados — {METODO}', fontsize=14)
@@ -181,7 +165,7 @@ def plota_resultados(ind, pasta, seed):
         ax = axs[idx // 2][idx % 2]
         ax.plot(x, pred, label=f'{nome} predito')
         ax.plot(x, orig,  label=f'{nome} real')
-        ax.set_title(f'Variável {nome}'); ax.set_xlabel('Tempo')
+        ax.set_title(f'Variável {nome}'); ax.set_xlabel('Tempo (h)')
         ax.set_ylabel('Concentração');    ax.legend()
     plt.tight_layout()
     caminho = os.path.join(pasta, f'graficos_{METODO}_seed{seed}.png')
@@ -190,37 +174,39 @@ def plota_resultados(ind, pasta, seed):
 
 
 def main(seed):
-    POPULACAO.clear(); APTIDAO.clear(); APTIDAO_FILHOS.clear()
+    POPULACAO.clear(); APTIDAO.clear()
     r.seed(seed)
-    MU, LAMBDA = 15, 105
+    MU = 15 * IND_SIZE
     pasta = METODO; os.makedirs(pasta, exist_ok=True)
     arq_res = os.path.join(pasta, f'resultados_{METODO}_seed{seed}.txt')
     inicio  = time.time()
     with open(arq_res, "w") as f:
         f.write(f"SEED: {seed}\nMETODO: {METODO}\nIND_SIZE: {IND_SIZE}\n")
+        f.write(f"strategy=best1bin  popsize={MU}  F={F}  CR={CR}\n")
+        f.write(f"BOUNDS: tau=[{MIN_TAU}, {MAX_TAU}]  k=[{MIN_K}, {MAX_K}]  Vmax=[{MIN_VMAX}, {MAX_VMAX}]\n")
 
     for _ in range(MU): POPULACAO.append(cria_individuo())
     for ind in POPULACAO: APTIDAO.append(avalia(ind))
 
     for gen in range(10001):
-        offspring = varOr(POPULACAO, LAMBDA)
-        APTIDAO_FILHOS.clear()
-        for ind in offspring:
-            dif = avalia(ind)
-            if math.isfinite(dif): APTIDAO_FILHOS.append(dif)
-        novos_pais, novas_aptidoes = selTournament(offspring, MU, 3)
-        POPULACAO.clear(); POPULACAO.extend(novos_pais)
-        APTIDAO.clear();   APTIDAO.extend(novas_aptidoes)
+        for i in range(MU):
+            mutante = mutacao_DE(POPULACAO, APTIDAO, i)
+            trial   = cruzamento_DE(POPULACAO[i], mutante)
+            apt_trial = avalia(trial)
+            if apt_trial <= APTIDAO[i]:
+                POPULACAO[i] = trial
+                APTIDAO[i]   = apt_trial
+
         if gen % 100 == 0:
             mv = min(APTIDAO); mi = APTIDAO.index(mv)
-            print(f"GEN: {gen}\nIndividuo: \n{POPULACAO[mi][:IND_SIZE]}\nAPTIDAO: \n{mv}")
+            print(f"GEN: {gen}\nIndividuo: \n{POPULACAO[mi]}\nAPTIDAO: \n{mv}")
             with open(arq_res, "a") as f:
-                f.write(f"GEN: {gen}\nIndividuo: \n{POPULACAO[mi][:IND_SIZE]}\nAPTIDAO: \n{mv}\n")
+                f.write(f"GEN: {gen}\nIndividuo: \n{POPULACAO[mi]}\nAPTIDAO: \n{mv}\n")
 
     mv = min(APTIDAO); mi = APTIDAO.index(mv)
     tt = time.time() - inicio
     msg = (f"\n--- RESULTADO FINAL ---\nErro (norma-1): {mv}\n"
-           f"Parâmetros: {POPULACAO[mi][:IND_SIZE]}\n"
+           f"Parâmetros: {POPULACAO[mi]}\n"
            f"Tempo total: {int(tt//3600):02d}h {int((tt%3600)//60):02d}m {int(tt%60):02d}s\n")
     print(msg)
     with open(arq_res, "a") as f: f.write(msg)
