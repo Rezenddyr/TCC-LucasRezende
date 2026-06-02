@@ -1,8 +1,8 @@
 import matplotlib.pyplot as plt
 import copy
-import random as r
 import numpy as np
 from scipy.integrate import odeint
+from scipy.optimize import differential_evolution
 import os
 import time
 
@@ -39,11 +39,6 @@ dobra_pontos = copy.deepcopy(x)
 Y0 = [A[0], B[0], C[0], D[0]]
 
 # tau(4) + k(4) + Vmax(3) = 11
-IND_SIZE  = 11
-TAU_SIZE  = 4
-K_SIZE    = 4
-VMAX_SIZE = 3
-
 MIN_TAU  = 0.1
 MAX_TAU  = 5.0
 MIN_K    = 0.001
@@ -51,11 +46,11 @@ MAX_K    = 0.999
 MIN_VMAX = 1.0
 MAX_VMAX = 10.0
 
-F  = 0.8
-CR = 0.75
-
-POPULACAO = []
-APTIDAO   = []
+BOUNDS = (
+    [(MIN_TAU,  MAX_TAU)]  * 4 +
+    [(MIN_K,    MAX_K)]    * 4 +
+    [(MIN_VMAX, MAX_VMAX)] * 3
+)
 
 
 def mm(v, k):
@@ -115,46 +110,6 @@ def avalia(ind):
         return float('inf')
 
 
-def cria_individuo():
-    ind = []
-    for _ in range(TAU_SIZE):  ind.append(r.uniform(MIN_TAU,  MAX_TAU))
-    for _ in range(K_SIZE):    ind.append(r.uniform(MIN_K,    MAX_K))
-    for _ in range(VMAX_SIZE): ind.append(r.uniform(MIN_VMAX, MAX_VMAX))
-    return ind
-
-
-def limites_gene(j):
-    if j < TAU_SIZE:
-        return MIN_TAU, MAX_TAU
-    elif j < TAU_SIZE + K_SIZE:
-        return MIN_K, MAX_K
-    else:
-        return MIN_VMAX, MAX_VMAX
-
-
-def mutacao_DE(populacao, aptidao, idx):
-    melhor_idx = aptidao.index(min(aptidao))
-    candidatos = [i for i in range(len(populacao)) if i != idx]
-    r1, r2 = r.sample(candidatos, 2)
-    mutante = []
-    for j in range(IND_SIZE):
-        m = populacao[melhor_idx][j] + F * (populacao[r1][j] - populacao[r2][j])
-        mutante.append(m)
-    return mutante
-
-
-def cruzamento_DE(alvo, mutante):
-    j_rand = r.randint(0, IND_SIZE - 1)
-    trial = []
-    for j in range(IND_SIZE):
-        lo, hi = limites_gene(j)
-        if r.random() < CR or j == j_rand:
-            trial.append(max(lo, min(hi, mutante[j])))
-        else:
-            trial.append(alvo[j])
-    return trial
-
-
 def plota_resultados(ind, pasta, seed):
     sol = odeint(twoBody, Y0, dobra_pontos, args=tuple(ind))
     pA, pB, pC, pD = organiza_pontos(sol)
@@ -174,43 +129,65 @@ def plota_resultados(ind, pasta, seed):
 
 
 def main(seed):
-    POPULACAO.clear(); APTIDAO.clear()
-    r.seed(seed)
-    MU = 15 * IND_SIZE
-    pasta = METODO; os.makedirs(pasta, exist_ok=True)
-    arq_res = os.path.join(pasta, f'resultados_{METODO}_seed{seed}.txt')
-    inicio  = time.time()
-    with open(arq_res, "w") as f:
-        f.write(f"SEED: {seed}\nMETODO: {METODO}\nIND_SIZE: {IND_SIZE}\n")
-        f.write(f"strategy=best1bin  popsize={MU}  F={F}  CR={CR}\n")
-        f.write(f"BOUNDS: tau=[{MIN_TAU}, {MAX_TAU}]  k=[{MIN_K}, {MAX_K}]  Vmax=[{MIN_VMAX}, {MAX_VMAX}]\n")
+    pasta = METODO
+    os.makedirs(pasta, exist_ok=True)
 
-    for _ in range(MU): POPULACAO.append(cria_individuo())
-    for ind in POPULACAO: APTIDAO.append(avalia(ind))
+    arquivo_resultados = os.path.join(pasta, f'resultados_{METODO}_seed{seed}.txt')
 
-    for gen in range(10001):
-        for i in range(MU):
-            mutante = mutacao_DE(POPULACAO, APTIDAO, i)
-            trial   = cruzamento_DE(POPULACAO[i], mutante)
-            apt_trial = avalia(trial)
-            if apt_trial <= APTIDAO[i]:
-                POPULACAO[i] = trial
-                APTIDAO[i]   = apt_trial
+    inicio = time.time()
+    with open(arquivo_resultados, "w") as f:
+        f.write(f"SEED: {seed}\n")
+        f.write(f"strategy=best1bin  popsize=15  F=0.8  CR=0.75  polish=True\n")
+        f.write(f"BOUNDS: tau=[{MIN_TAU}, {MAX_TAU}]  k=[{MIN_K}, {MAX_K}]"
+                f"  Vmax=[{MIN_VMAX}, {MAX_VMAX}]\n")
 
-        if gen % 100 == 0:
-            mv = min(APTIDAO); mi = APTIDAO.index(mv)
-            print(f"GEN: {gen}\nIndividuo: \n{POPULACAO[mi]}\nAPTIDAO: \n{mv}")
-            with open(arq_res, "a") as f:
-                f.write(f"GEN: {gen}\nIndividuo: \n{POPULACAO[mi]}\nAPTIDAO: \n{mv}\n")
+    gen_log = [0]
 
-    mv = min(APTIDAO); mi = APTIDAO.index(mv)
-    tt = time.time() - inicio
-    msg = (f"\n--- RESULTADO FINAL ---\nErro (norma-1): {mv}\n"
-           f"Parâmetros: {POPULACAO[mi]}\n"
-           f"Tempo total: {int(tt//3600):02d}h {int((tt%3600)//60):02d}m {int(tt%60):02d}s\n")
-    print(msg)
-    with open(arq_res, "a") as f: f.write(msg)
-    plota_resultados(POPULACAO[mi], pasta, seed)
+    def callback(xk, convergence=None):
+        if gen_log[0] % 100 == 0:
+            apt = avalia(xk)
+            print(f"GEN: {gen_log[0]}")
+            print(f"Individuo: \n{list(xk)}")
+            print(f"APTIDAO: \n{apt}")
+            with open(arquivo_resultados, "a") as f:
+                f.write(f"GEN: {gen_log[0]}\nIndividuo: \n{list(xk)}\nAPTIDAO: \n{apt}\n")
+        gen_log[0] += 1
+
+    result = differential_evolution(
+        avalia,
+        BOUNDS,
+        strategy='best1bin',
+        popsize=15,
+        mutation=0.8,
+        recombination=0.75,
+        polish=True,
+        seed=seed,
+        callback=callback,
+        maxiter=10001,
+        tol=0,
+        updating='immediate'
+    )
+
+    melhor_ind  = [float(v) for v in result.x]
+    menor_valor = result.fun
+
+    tempo_total = time.time() - inicio
+    horas    = int(tempo_total // 3600)
+    minutos  = int((tempo_total % 3600) // 60)
+    segundos = int(tempo_total % 60)
+
+    print(f"\n--- RESULTADO FINAL ---")
+    print(f"Erro (norma-1): {menor_valor}")
+    print(f"Parâmetros: {melhor_ind}")
+    print(f"Tempo total: {horas:02d}h {minutos:02d}m {segundos:02d}s")
+
+    with open(arquivo_resultados, "a") as f:
+        f.write(f"\n--- RESULTADO FINAL ---\n")
+        f.write(f"Erro (norma-1): {menor_valor}\n")
+        f.write(f"Parâmetros: {melhor_ind}\n")
+        f.write(f"Tempo total: {horas:02d}h {minutos:02d}m {segundos:02d}s\n")
+
+    plota_resultados(melhor_ind, pasta, seed)
 
 
 SEEDS = [
