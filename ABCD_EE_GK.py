@@ -1,4 +1,4 @@
-import matplotlib.pyplot as plt
+﻿import matplotlib.pyplot as plt
 import copy
 import random as r
 import numpy as np
@@ -7,7 +7,7 @@ import math
 import os
 import time
 
-METODO = "ABCD_GK"
+METODO = "ABCD_EE_GK"
 
 arquivo = open("Dados_abcd.txt", 'r')
 x, A, B, C, D = [], [], [], [], []

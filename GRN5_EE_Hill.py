@@ -1,4 +1,4 @@
-import matplotlib.pyplot as plt
+﻿import matplotlib.pyplot as plt
 import copy
 import random as r
 import numpy as np
@@ -7,7 +7,7 @@ import math
 import os
 import time
 
-METODO = "ES_Hill"
+METODO = "GRN5_EE_Hill"
 
 
 arquivo = open("GRN5.txt", 'r')

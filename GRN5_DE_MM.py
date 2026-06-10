@@ -1,4 +1,4 @@
-import matplotlib.pyplot as plt
+﻿import matplotlib.pyplot as plt
 import copy
 import numpy as np
 from scipy.integrate import odeint
@@ -6,7 +6,7 @@ from scipy.optimize import differential_evolution
 import os
 import time
 
-METODO = "DE_MM"
+METODO = "GRN5_DE_MM"
 
 arquivo = open("GRN5.txt", 'r')
 x, A, B, C, D, E = [], [], [], [], [], []

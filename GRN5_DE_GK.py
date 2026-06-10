@@ -1,4 +1,4 @@
-import matplotlib.pyplot as plt
+﻿import matplotlib.pyplot as plt
 import copy
 import numpy as np
 from scipy.integrate import odeint
@@ -7,7 +7,7 @@ import math
 import os
 import time
 
-METODO = "DE_GK"
+METODO = "GRN5_DE_GK"
 
 arquivo = open("GRN5.txt", 'r')
 x, A, B, C, D, E = [], [], [], [], [], []
